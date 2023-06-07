@@ -1,11 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bloc/bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:testingbloc/bloc/bloc_actions.dart';
 
-//Continue in 01:22:36
+import 'bloc/bloc_people.dart';
+import 'bloc/person.dart';
+
+//Continue in 2:10:46
 
 void main() {
   runApp(
@@ -22,56 +25,10 @@ void main() {
   );
 }
 
-@immutable
-abstract class LoadAction {
-  const LoadAction();
-}
-
-@immutable
-class LoadPeopleAction extends LoadAction {
-  final PersonUrl url;
-
-  const LoadPeopleAction({required this.url}) : super();
-}
-
-enum PersonUrl {
-  people1,
-  people2,
-}
-
 extension Subscript<T> on Iterable<T> {
   // if the lenght is bigger than the index, then return the element at the index
   // else return null
   T? operator [](int index) => length > index ? elementAt(index) : null;
-}
-
-extension UrlString on PersonUrl {
-  String get urlString {
-    switch (this) {
-      case PersonUrl.people1:
-        return "http://192.168.88.19:8082/testingbloc/api/people1.json";
-      case PersonUrl.people2:
-        return "http://192.168.88.19:8082/testingbloc/api/people2.json";
-    }
-  }
-}
-
-@immutable
-class Person {
-  final String name;
-  final int age;
-
-  const Person({
-    required this.name,
-    required this.age,
-  });
-
-  Person.fromJson(Map<String, dynamic> json)
-      : name = json['name'] as String,
-        age = int.parse(json['age']);
-
-  @override
-  String toString() => "name = $name, age = $age";
 }
 
 Future<Iterable<Person>> getPeople(String url) => HttpClient()
@@ -80,49 +37,6 @@ Future<Iterable<Person>> getPeople(String url) => HttpClient()
     .then((resp) => resp.transform(utf8.decoder).join())
     .then((str) => json.decode(str) as List<dynamic>)
     .then((list) => list.map((e) => Person.fromJson(e)));
-
-@immutable
-class FetchResult {
-  final Iterable<Person> people;
-
-  final bool isRetrievedFromCached;
-  const FetchResult({
-    required this.people,
-    required this.isRetrievedFromCached,
-  });
-
-  @override
-  String toString() =>
-      'Fetch result (isRetrievedFromCache = $isRetrievedFromCached, people = $people)';
-}
-
-class PeopleBloc extends Bloc<LoadAction, FetchResult?> {
-  final Map<PersonUrl, Iterable<Person>> _cache = {};
-
-  PeopleBloc() : super(null) {
-    on<LoadPeopleAction>((event, emit) async {
-      final url = event.url;
-      if (_cache.containsKey(url)) {
-        // the value is at cache
-        final cachePeople = _cache[url]!;
-        final result = FetchResult(
-          people: cachePeople,
-          isRetrievedFromCached: true,
-        );
-        emit(result);
-      } else {
-        final people = await getPeople(url.urlString);
-        _cache[url] = people;
-
-        final result = FetchResult(
-          people: people,
-          isRetrievedFromCached: false,
-        );
-        emit(result);
-      }
-    });
-  }
-}
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -139,9 +53,12 @@ class HomePage extends StatelessWidget {
             children: [
               TextButton(
                 onPressed: () {
-                  context.read<PeopleBloc>().add(const LoadPeopleAction(
-                        url: PersonUrl.people1,
-                      ));
+                  context.read<PeopleBloc>().add(
+                        const LoadPeopleAction(
+                          url: person1Url,
+                          loader: getPeople,
+                        ),
+                      );
                 },
                 child: const Text(
                   "Load Json 1",
@@ -149,9 +66,12 @@ class HomePage extends StatelessWidget {
               ),
               TextButton(
                 onPressed: () {
-                  context.read<PeopleBloc>().add(const LoadPeopleAction(
-                        url: PersonUrl.people2,
-                      ));
+                  context.read<PeopleBloc>().add(
+                        const LoadPeopleAction(
+                          url: person2Url,
+                          loader: getPeople,
+                        ),
+                      );
                 },
                 child: const Text(
                   "Load Json 2",
